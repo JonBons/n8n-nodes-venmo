@@ -90,7 +90,7 @@ export class VenmoApi implements ICredentialType {
 					authMethod: ['accessToken'],
 				},
 			},
-							description:
+			description:
 				'Optional. Mints new access tokens without the login endpoint, which Venmo blocks from servers. Used when the access token is rejected; Venmo may rotate it, and the newest value stays in memory for this process. Renewal has only been exercised with a bogus token so far, not a real one — keep an access token as well in case renewal fails.',
 		},
 		{

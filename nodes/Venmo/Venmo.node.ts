@@ -76,14 +76,14 @@ const userProperties: INodeProperties[] = [
 		displayOptions: { show: { resource: ['user'] } },
 		options: [
 			{
-				name: 'Get Friends',
-				value: 'getFriends',
-				action: 'Get a friend list',
-			},
-			{
 				name: 'Get',
 				value: 'getUser',
 				action: 'Get a user profile',
+			},
+			{
+				name: 'Get Friends',
+				value: 'getFriends',
+				action: 'Get a friend list',
 			},
 			{
 				name: 'Search',

@@ -54,7 +54,7 @@ Rebuild (`npm run build`) after changing the source, then restart n8n. Keep `dis
 
 **Refresh token.** A refresh token is exchanged at `POST /v1/oauth/access_token` with `grant_type=refresh_token` — the one grant this client can send that Venmo's edge does not filter. Paste one into the credential and the client keeps itself signed in: it uses the access token, and when Venmo rejects it, renews with the refresh token instead of the login endpoint. Venmo may rotate the refresh token; the newest value is kept in memory for the life of the process, so re-copy it if a restart leaves the old one rejected. **Unverified:** renewal has only been exercised with a bogus token, which Venmo answered with `275 Could not refresh tokens` — that proves the route and grant are accepted, not that a real token mints a working session. Keep an access token alongside it until you have tried renewal with your own.
 
-In Access Token mode the credential needs at least one of the two tokens; an empty pair is rejected with an error saying so, instead of falling through to a password sign-in that was never configured.
+In Access Token mode the credential needs at least one of the two tokens; an empty pair is rejected with an error saying so, instead of falling through to a password sign-in that was never configured. Press **Test** to check it: the test makes the same `GET /account` call the nodes use and reports the account the token belongs to.
 
 ### First sign-in (only when Venmo wants a code)
 
@@ -67,36 +67,6 @@ The OTP secret from step 1 is saved in the workflow's static data, so you only h
 Venmo picks the second factor, not you. Before sending an SMS the node checks `GET /account/two-factor/token`: if the account answers with a security question instead of a phone number, it stops with that question named — no doomed SMS call. Those accounts cannot finish the challenge from n8n, so switch the credential to *Access Token* and supply an access token or refresh token.
 
 A two-factor code saved in the credential is single-use and expires in minutes. If Venmo rejects it, sign-in falls back to "a fresh code is needed" instead of failing with a code error, so auto sign-in keeps working once you clear the field.
-
-## CLI: prove it works first
-
-Run this before loading anything into n8n. It signs in with exactly the client the nodes use and dumps `GET /account`:
-
-```bash
-npm run build
-node bin/venmo-cli.js login
-```
-
-It prompts for the password (hidden) and, if Venmo texts a code, for that code. On success it prints your profile, balance, and the access token to paste into the credential. The device id is derived from the account the same way the credential does, so the CLI and n8n identify as one device.
-
-`login` is the path Venmo now blocks; use `account --token <access-token>` to prove a token works.
-
-Non-interactive:
-
-```bash
-VENMO_USERNAME=you@example.com VENMO_PASSWORD='...' node bin/venmo-cli.js login --json
-node bin/venmo-cli.js account --token <access-token>
-node bin/venmo-cli.js account --refresh-token <refresh-token>
-node bin/venmo-cli.js login --otp-secret <secret> --code <code>
-node bin/venmo-cli.js send --to <recipient> --amount 0.01 --note 'uuid test' \
-  --token <access-token> --idempotency-key venmo-uuid-test-1
-```
-
-`send` reuses `sendPayment`, so it is the cheapest way to exercise a real payment: it prints the payment id and the uuid it sent, and re-running it with the same `--idempotency-key` replays the identical uuid. Use `--funding-source` to pin the balance method, and `--json` for machine-readable output.
-
-`--refresh-token` renews an access token through the same grant the credential uses — the way to try real renewal outside n8n. If Venmo rotates it, the new refresh token is printed with the account. This has still only been exercised with a bogus token (see [Credential](#credential-venmo-api)), so use it to find out whether a real one works.
-
-`--json` keeps stdout machine-readable (progress and errors go to stderr). Exit code `3` means Venmo wants a security question instead of an SMS code. The CLI reads environment variables and files, so it ships from a checkout only (`node bin/venmo-cli.js`) and is not part of the published npm package.
 
 ## Operations
 
@@ -156,6 +126,7 @@ await client.sendPayment({ target: 'someone@example.com', amount: 5, note: 'Coff
 - **No retry on writes.** A `GET` that 401s is retried once after a fresh sign-in. `POST`/`PUT`/`DELETE` are never retried, because a retried payment can move money twice.
 - **Amounts and IDs.** User and payment IDs are 19-digit numbers sent as strings, so they are not rounded by JSON. Amounts are always positive in the UI; *Request Payment* sends the negative value Venmo expects.
 - **Errors** map to readable messages, including `81109`/`81110` (2FA), `261`/`262` (bad/revoked token), `13006` (insufficient balance), and `2901`/`2905`/`2907` (nothing pending / reminder already sent).
+- The old `tools/parse-cookies.js` helper is kept for reference only; nothing here needs a browser cookie.
 
 ## What the Android app confirmed
 
@@ -176,7 +147,7 @@ The decisive experiment: the same `POST /v1/oauth/access_token` answers normal J
 
 ## If sign-in fails
 
-Both the CLI and the Sign-In node report what Venmo actually answered:
+The Sign-In node reports what Venmo actually answered:
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
@@ -186,7 +157,7 @@ Both the CLI and the Sign-In node report what Venmo actually answered:
 | `code 81110` | The code, or the challenge itself, expired | Start again for a fresh text message |
 | `code 261` / `262` | Token missing, invalid or revoked | Add a refresh token and the client renews it; otherwise sign in on the phone and paste a new access token |
 
-Reads never carry the login field, so a bare 403 on a read is a different problem: the network is being blocked (VPN, region, IP reputation) rather than the account. Run the CLI from your own machine, then use Access Token mode in n8n.
+Reads never carry the login field, so a bare 403 on a read is a different problem: the network is being blocked (VPN, region, IP reputation) rather than the account. That points at where n8n runs, not at the token.
 
 ## Limitations
 
@@ -194,9 +165,8 @@ Reads never carry the login field, so a bare 403 on a read is a different proble
 - Password and SMS sign-in are blocked from servers: Venmo's firewall filters the login field before authentication, so those flows can only report the block. An access token plus a refresh token is the supported path.
 - Security-question 2FA is not automated: SMS codes are unreachable too, and accounts that only offer a security question are reported clearly and need Access Token mode.
 - Refresh-token renewal is route-verified only with a bogus token; a real refresh token has not been exercised yet. If renewal fails, fall back to an access token.
+- No webhooks: poll with *List Payments* or *List Transactions* on a Schedule Trigger.
 
 ## Tests
 
 `npm test` builds and runs the committed `node:test` suite in `test/` — no extra dependencies. It covers the refresh grant shape, refresh-only renewal, `401` renewal on reads, the no-retry rule for writes, form-encoded login, the `403` message, and credential validation. The transport is stubbed; nothing in the suite touches Venmo.
-- No webhooks; poll with *List Payments* or *List Transactions* on a Schedule Trigger.
-- The old `tools/parse-cookies.js` helper is kept for reference only; nothing here needs a browser cookie.

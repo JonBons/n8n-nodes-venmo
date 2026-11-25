@@ -8,5 +8,3 @@ dist/
 .DS_Store
 .e2e/
 
-# A global Visual Studio template ignores bin/; this package keeps its CLI there.
-!bin/
