@@ -1,8 +1,13 @@
 name: publish
 
-# Publishing from CI with a provenance statement is required for n8n Creator
-# Portal verification, and it also means a release is always built and tested
-# from a clean checkout rather than a local machine.
+# Trusted publishing (OIDC): no npm token is stored in this repository. GitHub
+# mints a short-lived token for this exact workflow, npm verifies it came from
+# this repo and file, and then accepts the publish. Provenance is generated
+# automatically for OIDC publishes, which is what n8n's Creator Portal expects.
+#
+# Setup, once: the trusted publisher lives on the package's own settings page on
+# npmjs.com, so the package has to exist first. Version 0.1.0 was published by
+# hand for that reason; from 0.1.1 on, this workflow is the only publisher.
 on:
   push:
     tags:
@@ -10,19 +15,35 @@ on:
 
 permissions:
   contents: read
-  id-token: write # provenance
+  id-token: write # required to mint the OIDC token
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: https://registry.npmjs.org
-          cache: npm
+          package-manager-cache: false # never cache in a release build
+
+      # Node 22 still ships npm 10, which asks GitHub for an OIDC token only to
+      # sign provenance and never trades it for publish rights. It fails with a
+      # bare ENEEDAUTH or a 404 on PUT, so check the version up front instead.
+      - name: Require an npm CLI that can publish over OIDC
+        run: |
+          version="$(npm --version)"
+          echo "npm $version"
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+            if (!ok) {
+              console.error(`npm ${process.argv[1]} cannot publish with trusted publishing, needs 11.5.1 or later`);
+              process.exit(1);
+            }
+          ' "$version"
 
       - name: Check the tag matches package.json
         run: |
@@ -35,9 +56,8 @@ jobs:
 
       - run: npm ci
 
-      # prepublishOnly runs the build and the test suite, so a red test stops the
-      # publish before the tarball is created.
-      - name: Publish with provenance
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # prepublishOnly builds and tests, so a red test stops the publish before
+      # the tarball exists. No token env var here: setting NODE_AUTH_TOKEN would
+      # make npm use it and skip OIDC entirely.
+      - name: Publish
+        run: npm publish --access public
