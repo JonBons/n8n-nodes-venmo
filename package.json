@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-venmo",
-  "version": "0.1.1",
+  "version": "0.1.0",
   "description": "Unofficial Venmo API client and n8n nodes: sign in with email + SMS 2FA, send and request payments, read transactions.",
   "license": "MIT",
   "author": {
