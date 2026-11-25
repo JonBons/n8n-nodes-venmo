@@ -4,7 +4,7 @@ Unofficial Venmo API client and n8n nodes. Sign in with your Venmo email and pas
 
 > Not affiliated with, endorsed by, or supported by Venmo or PayPal. This talks to the same private endpoints the Venmo mobile app uses. It can break without notice, and payments it creates are real. Use your own account and your own risk.
 
-The node icons are original artwork drawn for this package: a heavy teal "V" with rounded ends. No Venmo glyph, badge, colour or wordmark.
+The node icons are original artwork drawn for this package: a rounded teal dollar sign. No Venmo glyph, badge, colour or wordmark.
 
 ## Why this exists
 
