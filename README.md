@@ -4,6 +4,8 @@ Unofficial Venmo API client and n8n nodes. Sign in with your Venmo email and pas
 
 > Not affiliated with, endorsed by, or supported by Venmo or PayPal. This talks to the same private endpoints the Venmo mobile app uses. It can break without notice, and payments it creates are real. Use your own account and your own risk.
 
+The node icons are original artwork drawn for this package: a heavy teal "V" with rounded ends. No Venmo glyph, badge, colour or wordmark.
+
 ## Why this exists
 
 Venmo has no public API for personal accounts, so the usual workaround is logging into venmo.com, opening DevTools, and copying a cookie/session by hand every time it expires. This package does the real OAuth password grant against `api.venmo.com/v1`, keeps the device ID stable so Venmo stops asking for codes, and caches the token in the n8n process.

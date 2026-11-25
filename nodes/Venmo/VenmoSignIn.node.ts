@@ -57,6 +57,7 @@ export class VenmoSignIn implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Venmo Sign-In',
 		name: 'venmoSignIn',
+		icon: { light: 'file:venmo.svg', dark: 'file:venmo.dark.svg' },
 		group: ['transform'],
 		usableAsTool: true,
 		version: 1,

@@ -5,6 +5,8 @@ export class VenmoApi implements ICredentialType {
 
 	displayName = 'Venmo API';
 
+	icon = { light: 'file:venmo.svg', dark: 'file:venmo.dark.svg' } as const;
+
 	documentationUrl = 'https://github.com/JonBons/n8n-nodes-venmo#credential-venmo-api';
 
 	properties: INodeProperties[] = [
