@@ -5,9 +5,10 @@ import type {
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { createClientFromCredentials, VenmoCredentials } from './VenmoClient';
+import { testVenmoCredential } from './credentialTest';
 import { toNodeError } from './NodeErrors';
 
 const properties: INodeProperties[] = [
@@ -34,6 +35,7 @@ const properties: INodeProperties[] = [
 		displayName: 'Two-Factor Code',
 		name: 'otpCode',
 		type: 'string',
+		typeOptions: { password: true },
 		default: '',
 		required: true,
 		displayOptions: { show: { mode: ['complete'] } },
@@ -43,6 +45,7 @@ const properties: INodeProperties[] = [
 		displayName: 'OTP Secret',
 		name: 'otpSecret',
 		type: 'string',
+		typeOptions: { password: true },
 		default: '',
 		displayOptions: { show: { mode: ['complete'] } },
 		description:
@@ -54,8 +57,8 @@ export class VenmoSignIn implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Venmo Sign-In',
 		name: 'venmoSignIn',
-		icon: 'fa:sign-in-alt',
 		group: ['transform'],
+		usableAsTool: true,
 		version: 1,
 		subtitle: '={{$parameter["mode"]}}',
 		description:
@@ -63,15 +66,22 @@ export class VenmoSignIn implements INodeType {
 		defaults: {
 			name: 'Venmo Sign-In',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'venmoApi',
 				required: true,
+				testedBy: 'venmoApi',
 			},
 		],
 		properties,
+	};
+
+	methods = {
+		credentialTest: {
+			venmoApi: testVenmoCredential,
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {

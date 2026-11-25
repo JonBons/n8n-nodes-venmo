@@ -499,7 +499,9 @@ export class VenmoClient {
 							error.venmoCode === 81110 ||
 							[400, 401, 403].includes(error.statusCode ?? 0));
 
-					if (!isCodeRejection) throw error;
+					// This module is a standalone client; the nodes convert these typed errors
+					// with toNodeError(), so it reports the rejection instead of wrapping it.
+					if (!isCodeRejection) return Promise.reject(error);
 
 					this.twoFactorCodeRejected = true;
 					return {
@@ -590,15 +592,17 @@ export class VenmoClient {
 	 * instead of failing an account that would have worked.
 	 */
 	async getTwoFactorSummary(otpSecret: string): Promise<TwoFactorSummary | undefined> {
+		let expiredChallenge: unknown;
 		try {
 			return summarizeTwoFactorOptions(await this.getTwoFactorOptions(otpSecret));
 		} catch (error) {
 			// An expired challenge is a real answer: let the caller report it.
 			if (error instanceof VenmoApiError && (error.venmoCode === 81109 || error.venmoCode === 81110)) {
-				throw error;
+				expiredChallenge = error;
 			}
-			return undefined;
 		}
+		if (expiredChallenge) throw expiredChallenge;
+		return undefined;
 	}
 
 	/** Exchange the SMS code + otp secret for an access token. */

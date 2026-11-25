@@ -3,21 +3,29 @@
   "version": "0.1.0",
   "description": "Unofficial Venmo API client and n8n nodes: sign in with email + SMS 2FA, send and request payments, read transactions.",
   "license": "MIT",
+  "author": {
+    "name": "JonBons",
+    "email": "me@mattgraham.me"
+  },
+  "homepage": "https://github.com/JonBons/n8n-nodes-venmo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JonBons/n8n-nodes-venmo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JonBons/n8n-nodes-venmo/issues"
+  },
   "keywords": [
     "n8n-community-node-package",
     "n8n",
     "venmo",
     "payments"
   ],
-  	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
-	"bin": {
-		"venmo-api": "bin/venmo-cli.js"
-	},
-	"files": [
-		"dist",
-		"bin"
-	],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "n8n": {
     "n8nNodesApiVersion": 1,
     "credentials": [
@@ -31,9 +39,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    		"typecheck": "tsc --noEmit",
-		"test": "npm run build && node --test test",
-    "prepublishOnly": "npm run build"
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test",
+    "prepublishOnly": "npm test"
   },
   "peerDependencies": {
     "n8n-workflow": "*"

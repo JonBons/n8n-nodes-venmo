@@ -5,6 +5,8 @@ export class VenmoApi implements ICredentialType {
 
 	displayName = 'Venmo API';
 
+	documentationUrl = 'https://github.com/JonBons/n8n-nodes-venmo#credential-venmo-api';
+
 	properties: INodeProperties[] = [
 		{
 			displayName: 'Authentication',

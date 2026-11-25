@@ -1,18 +1,15 @@
 import type {
-	ICredentialDataDecryptedObject,
-	ICredentialsDecrypted,
-	ICredentialTestFunctions,
 	IDataObject,
 	IExecuteFunctions,
 	INodeExecutionData,
-	INodeCredentialTestResult,
 	INodeProperties,
 	INodeType,
 	INodeTypeDescription,
 } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { createClientFromCredentials, VenmoClient } from './VenmoClient';
+import { testVenmoCredential } from './credentialTest';
 import { toNodeError } from './NodeErrors';
 
 const showFor = (resource: string, operations: string[]) => ({
@@ -84,12 +81,12 @@ const userProperties: INodeProperties[] = [
 				action: 'Get a friend list',
 			},
 			{
-				name: 'Get User',
+				name: 'Get',
 				value: 'getUser',
 				action: 'Get a user profile',
 			},
 			{
-				name: 'Search Users',
+				name: 'Search',
 				value: 'searchUsers',
 				description: 'Find a Venmo user by name, username, email or phone',
 				action: 'Search users',
@@ -160,7 +157,7 @@ const paymentProperties: INodeProperties[] = [
 		displayOptions: { show: { resource: ['payment'] } },
 		options: [
 			{
-				name: 'Get Payment',
+				name: 'Get',
 				value: 'get',
 				action: 'Get a payment',
 			},
@@ -171,7 +168,7 @@ const paymentProperties: INodeProperties[] = [
 				action: 'Get a transaction',
 			},
 			{
-				name: 'List Payments',
+				name: 'List',
 				value: 'list',
 				action: 'List payments',
 			},
@@ -182,19 +179,19 @@ const paymentProperties: INodeProperties[] = [
 				action: 'List transactions',
 			},
 			{
-				name: 'Request Payment',
+				name: 'Request',
 				value: 'request',
 				description: 'Send a charge to someone else',
 				action: 'Request a payment',
 			},
 			{
-				name: 'Send Payment',
+				name: 'Send',
 				value: 'send',
 				description: 'Pay a user, email address or phone number',
 				action: 'Send a payment',
 			},
 			{
-				name: 'Update Payment',
+				name: 'Update',
 				value: 'update',
 				description: 'Approve, deny, cancel or remind a pending payment request',
 				action: 'Update a payment',
@@ -260,7 +257,7 @@ const paymentProperties: INodeProperties[] = [
 		default: '',
 		displayOptions: showFor('payment', ['send', 'request']),
 		description:
-			'Optional. Reused on retries so Venmo sees the same payment. Defaults to the execution, node and item, which survives "Retry On Fail" but not a retry from the Executions list — set a business id (order, invoice, row id) when a retry must not create a second payment.',
+			'Optional. Reused on retries so Venmo sees the same payment. Defaults to the execution, node and item, which survives "Retry On Fail" but not a retry from the Executions list — set a business ID (order, invoice, row ID) when a retry must not create a second payment.',
 	},
 	{
 		displayName: 'Payment ID',
@@ -418,16 +415,16 @@ export class Venmo implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Venmo',
 		name: 'venmo',
-		icon: 'fa:credit-card',
 		group: ['transform'],
+		usableAsTool: true,
 		version: 1,
 		subtitle: '={{$parameter["operation"]}}',
 		description: 'Send and request Venmo payments, look up users and read transactions',
 		defaults: {
 			name: 'Venmo',
 		},
-		inputs: ['main'],
-		outputs: ['main'],
+		inputs: [NodeConnectionTypes.Main],
+		outputs: [NodeConnectionTypes.Main],
 		credentials: [
 			{
 				name: 'venmoApi',
@@ -444,38 +441,9 @@ export class Venmo implements INodeType {
 		],
 	};
 
-	/**
-	 * Powers the credential Test button. Registered on the node because n8n wraps a
-	 * credential-level `test` into a declarative `testRequest` and never calls it
-	 * (checked on n8n 2.1.4, where that path fails with "Invalid URL"), while a node
-	 * `credentialTest` method is invoked directly.
-	 */
 	methods = {
 		credentialTest: {
-			venmoApi: async function (
-				this: ICredentialTestFunctions,
-				credential: ICredentialsDecrypted<ICredentialDataDecryptedObject>,
-			): Promise<INodeCredentialTestResult> {
-				try {
-					const client = await createClientFromCredentials({
-						getCredentials: async () => credential.data,
-						helpers: this.helpers,
-					});
-
-					const account = await client.getAccount();
-					const user = account?.user ?? {};
-					const who = user.username
-						? `@${user.username}`
-						: user.display_name || user.id || 'your Venmo account';
-
-					return { status: 'OK', message: `Signed in as ${who}.` };
-				} catch (error) {
-					return {
-						status: 'Error',
-						message: error instanceof Error ? error.message : String(error),
-					};
-				}
-			},
+			venmoApi: testVenmoCredential,
 		},
 	};
 

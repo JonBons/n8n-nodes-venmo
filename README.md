@@ -96,7 +96,7 @@ node bin/venmo-cli.js send --to <recipient> --amount 0.01 --note 'uuid test' \
 
 `--refresh-token` renews an access token through the same grant the credential uses — the way to try real renewal outside n8n. If Venmo rotates it, the new refresh token is printed with the account. This has still only been exercised with a bogus token (see [Credential](#credential-venmo-api)), so use it to find out whether a real one works.
 
-`--json` keeps stdout machine-readable (progress and errors go to stderr). Exit code `3` means Venmo wants a security question instead of an SMS code. Installed globally, the CLI is also available as `venmo-api`.
+`--json` keeps stdout machine-readable (progress and errors go to stderr). Exit code `3` means Venmo wants a security question instead of an SMS code. The CLI reads environment variables and files, so it ships from a checkout only (`node bin/venmo-cli.js`) and is not part of the published npm package.
 
 ## Operations
 
