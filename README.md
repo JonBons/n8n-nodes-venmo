@@ -4,13 +4,11 @@ Unofficial Venmo API client and n8n nodes. Sign in with your Venmo email and pas
 
 > Not affiliated with, endorsed by, or supported by Venmo or PayPal. This talks to the same private endpoints the Venmo mobile app uses. It can break without notice, and payments it creates are real. Use your own account and your own risk.
 
-The node icons are original artwork drawn for this package: a "V" with a dollar sign nested in it, two blues per theme — `#225F8C` with `#4196CF` on light, `#7AB8DC` with `#2F86BE` on dark. The blues sit next to Venmo's brand blue without copying it (`#008CFF` primary, `#3D95CE` legacy), and the mark contains no Venmo glyph, badge or wordmark.
-
 ## Why this exists
 
 Venmo has no public API for personal accounts, so the usual workaround is logging into venmo.com, opening DevTools, and copying a cookie/session by hand every time it expires. This package does the real OAuth password grant against `api.venmo.com/v1`, keeps the device ID stable so Venmo stops asking for codes, and caches the token in the n8n process.
 
-This implementation was checked against a decompile of the real Android app (com.venmo 26.27.1); see [What the Android app confirmed](#what-the-android-app-confirmed). The important caveat: Venmo's edge firewall rejects any request whose body carries the login field `phone_email_or_username`, before authentication runs, so email/password and SMS sign-in cannot complete from a server. Access Token mode works, and a refresh token renews it unattended.
+The important caveat: Venmo's edge firewall rejects any request whose body carries the login field `phone_email_or_username`, before authentication runs, so email/password and SMS sign-in cannot complete from a server. Access Token mode works, and a refresh token renews it unattended.
 
 ## Setup
 
@@ -129,23 +127,6 @@ await client.sendPayment({ target: 'someone@example.com', amount: 5, note: 'Coff
 - **Amounts and IDs.** User and payment IDs are 19-digit numbers sent as strings, so they are not rounded by JSON. Amounts are always positive in the UI; *Request Payment* sends the negative value Venmo expects.
 - **Errors** map to readable messages, including `81109`/`81110` (2FA), `261`/`262` (bad/revoked token), `13006` (insufficient balance), and `2901`/`2905`/`2907` (nothing pending / reminder already sent).
 - The old `tools/parse-cookies.js` helper is kept for reference only; nothing here needs a browser cookie.
-
-## What the Android app confirmed
-
-Static analysis of `base.apk` (jadx, 13 dex) was used to validate this client:
-
-| Behaviour | Evidence in the app |
-| --- | --- |
-| Password login is **form-encoded** | `LogInApi` is `@POST("oauth/access_token")` with `@FormUrlEncoded` and `@Field("phone_email_or_username", "password", "client_id")` |
-| 2FA headers | `@Header("VENMO-OTP-SECRET")`, `@Header("VENMO-OTP")`; options come from `@GET("account/two-factor/token")` |
-| Device header | `device-id` sent on every request (`PayPalSDKNetworkInterceptor`) |
-| App headers | `application-id: com.venmo`, `X-Venmo-Android-Version-Name: 26.27.1`, `X-Venmo-Android-Version-CODE: 9042`, `Venmo-Client-Id: 4` |
-| User-Agent | `UserAgent#getFormattedUserAgent()` → `"<manufacturer>/<model>Venmo/<version> Android/<release> "` |
-| Payments | `@POST("payments")` with a JSON `PaymentRequestBody` (user id / username / email / phone, amount, note, audience, funding source, metadata) |
-| Login has also moved to token exchange | `AuthenticationTokenExchangeApiService` posts `code` + `client_id` to the same `oauth/access_token` after PayPal web login; `RefreshTokenApiService` posts `grant_type`/`refresh_token` |
-| TLS pinning | OkHttp `CertificatePinner` is used, so the app's traffic cannot be replayed without its trust chain |
-
-The decisive experiment: the same `POST /v1/oauth/access_token` answers normal JSON (`400` `241 Missing argument: client_id`, `276 Grant type is invalid`, `275 Could not refresh tokens`) for empty bodies, `client_id`-only bodies and refresh grants, but returns a bare `403` from `awselb/2.0` the moment the body contains `phone_email_or_username` — with or without a password, with client ids 1/3/4, the app's exact user agent and version headers, a Chrome user agent, or web `Origin`/`Referer` headers. The rule is applied to the login parameter itself before authentication: an anti-credential-stuffing control, not TLS, device trust or app identity. That is why password and SMS sign-in cannot work from n8n, and why `v_id` advice does not help.
 
 ## If sign-in fails
 
