@@ -40,7 +40,7 @@
     "build": "tsc && node tools/copy-icons.js",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --test test",
+    "test": "npm run build && node --test",
     "prepublishOnly": "npm test"
   },
   "peerDependencies": {
