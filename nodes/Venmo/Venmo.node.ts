@@ -411,6 +411,148 @@ function unwrapResponse(body: any): IDataObject {
 	return (body ?? {}) as IDataObject;
 }
 
+async function runOperation(
+	ctx: IExecuteFunctions,
+	client: VenmoClient,
+	resource: string,
+	operation: string,
+	i: number,
+): Promise<any> {
+	if (resource === 'account') {
+		if (operation === 'getProfile') return await client.getAccount();
+
+		if (operation === 'getBalance') {
+			const account = await client.getAccount();
+			return {
+				balance: account?.balance,
+				userId: account?.user?.id,
+				username: account?.user?.username,
+				displayName: account?.user?.display_name,
+			};
+		}
+
+		if (operation === 'getPaymentMethods') return await client.getPaymentMethods();
+
+		if (operation === 'signOut') {
+			await client.logout();
+			return { success: true };
+		}
+	}
+
+	if (resource === 'user') {
+		if (operation === 'getUser') {
+			const userId = ctx.getNodeParameter('userId', i) as string;
+			return await client.getUser(userId);
+		}
+
+		if (operation === 'searchUsers') {
+			const query = ctx.getNodeParameter('query', i) as string;
+			return await client.searchUsers(query, {
+				limit: ctx.getNodeParameter('limit', i, 20) as number,
+				offset: ctx.getNodeParameter('offset', i, 0) as number,
+				usernameOnly: ctx.getNodeParameter('usernameOnly', i, false) as boolean,
+			});
+		}
+
+		if (operation === 'getFriends') {
+			const userId = (ctx.getNodeParameter('friendsUserId', i, '') as string) || undefined;
+			return await client.getFriends(userId, {
+				limit: ctx.getNodeParameter('limit', i, 50) as number,
+				offset: ctx.getNodeParameter('offset', i, 0) as number,
+			});
+		}
+	}
+
+	if (resource === 'payment') {
+		if (operation === 'send' || operation === 'request') {
+			const target = ctx.getNodeParameter('target', i) as string;
+			const amount = ctx.getNodeParameter('amount', i) as number;
+			const note = ctx.getNodeParameter('note', i) as string;
+			const audience = ctx.getNodeParameter('audience', i, 'private') as string;
+
+			if (!(amount > 0)) {
+				throw new NodeOperationError(
+					ctx.getNode(),
+					'Amount must be greater than 0.',
+					{ itemIndex: i },
+				);
+			}
+
+			// A business id survives a workflow-level retry; the execution-scoped
+			// fallback only survives Retry On Fail, which re-runs inside ctx execution.
+			const idempotencyKey =
+				((ctx.getNodeParameter('idempotencyKey', i, '') as string) || '').trim() ||
+				`${ctx.getExecutionId()}:${ctx.getNode().name}:${i}`;
+
+			if (operation === 'send') {
+				return await client.sendPayment({
+					target,
+					amount,
+					note,
+					audience,
+					fundingSourceId: (ctx.getNodeParameter('fundingSourceId', i, '') as string) || undefined,
+					idempotencyKey,
+				});
+			}
+
+			return await client.requestPayment({ target, amount, note, audience, idempotencyKey });
+		}
+
+		if (operation === 'get') {
+			const paymentId = ctx.getNodeParameter('paymentId', i) as string;
+			return await client.getPayment(paymentId);
+		}
+
+		if (operation === 'list') {
+			return await client.listPayments({
+				action: ctx.getNodeParameter('listAction', i, 'all') as string,
+				limit: ctx.getNodeParameter('paymentLimit', i, 50) as number,
+				beforeId: (ctx.getNodeParameter('beforeId', i, '') as string) || undefined,
+			});
+		}
+
+		if (operation === 'update') {
+			const paymentId = ctx.getNodeParameter('paymentId', i) as string;
+			const action = ctx.getNodeParameter('paymentAction', i) as
+				| 'approve'
+				| 'deny'
+				| 'cancel'
+				| 'remind';
+			return await client.updatePayment(paymentId, action);
+		}
+
+		if (operation === 'getTransaction') {
+			const transactionId = ctx.getNodeParameter('transactionId', i) as string;
+			return await client.getTransaction(transactionId);
+		}
+
+		if (operation === 'listTransactions') {
+			return await client.getTransactions(
+				(ctx.getNodeParameter('transactionsUserId', i, '') as string) || undefined,
+				{
+					limit: ctx.getNodeParameter('paymentLimit', i, 50) as number,
+					beforeId: (ctx.getNodeParameter('beforeId', i, '') as string) || undefined,
+				},
+			);
+		}
+	}
+
+	if (resource === 'custom' && operation === 'request') {
+		const method = ctx.getNodeParameter('method', i) as string;
+		const path = ctx.getNodeParameter('path', i) as string;
+		return await client.apiRequest(method, path, {
+			query: parseJsonParam(ctx, ctx.getNodeParameter('query', i, ''), 'Query'),
+			body: parseJsonParam(ctx, ctx.getNodeParameter('body', i, ''), 'Body'),
+		});
+	}
+
+	throw new NodeOperationError(
+		ctx.getNode(),
+		`Unsupported operation "${operation}" for resource "${resource}".`,
+		{ itemIndex: i },
+	);
+}
+
 export class Venmo implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Venmo',
@@ -458,12 +600,7 @@ export class Venmo implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
-				const response = await (this as unknown as Venmo & IExecuteFunctions).runOperation(
-					client,
-					resource,
-					operation,
-					i,
-				);
+				const response = await runOperation(this, client, resource, operation, i);
 
 				returnData.push({
 					json: unwrapResponse(response),
@@ -484,145 +621,4 @@ export class Venmo implements INodeType {
 		return [returnData];
 	}
 
-	private async runOperation(
-		this: IExecuteFunctions,
-		client: VenmoClient,
-		resource: string,
-		operation: string,
-		i: number,
-	): Promise<any> {
-		if (resource === 'account') {
-			if (operation === 'getProfile') return await client.getAccount();
-
-			if (operation === 'getBalance') {
-				const account = await client.getAccount();
-				return {
-					balance: account?.balance,
-					userId: account?.user?.id,
-					username: account?.user?.username,
-					displayName: account?.user?.display_name,
-				};
-			}
-
-			if (operation === 'getPaymentMethods') return await client.getPaymentMethods();
-
-			if (operation === 'signOut') {
-				await client.logout();
-				return { success: true };
-			}
-		}
-
-		if (resource === 'user') {
-			if (operation === 'getUser') {
-				const userId = this.getNodeParameter('userId', i) as string;
-				return await client.getUser(userId);
-			}
-
-			if (operation === 'searchUsers') {
-				const query = this.getNodeParameter('query', i) as string;
-				return await client.searchUsers(query, {
-					limit: this.getNodeParameter('limit', i, 20) as number,
-					offset: this.getNodeParameter('offset', i, 0) as number,
-					usernameOnly: this.getNodeParameter('usernameOnly', i, false) as boolean,
-				});
-			}
-
-			if (operation === 'getFriends') {
-				const userId = (this.getNodeParameter('friendsUserId', i, '') as string) || undefined;
-				return await client.getFriends(userId, {
-					limit: this.getNodeParameter('limit', i, 50) as number,
-					offset: this.getNodeParameter('offset', i, 0) as number,
-				});
-			}
-		}
-
-		if (resource === 'payment') {
-			if (operation === 'send' || operation === 'request') {
-				const target = this.getNodeParameter('target', i) as string;
-				const amount = this.getNodeParameter('amount', i) as number;
-				const note = this.getNodeParameter('note', i) as string;
-				const audience = this.getNodeParameter('audience', i, 'private') as string;
-
-				if (!(amount > 0)) {
-					throw new NodeOperationError(
-						this.getNode(),
-						'Amount must be greater than 0.',
-						{ itemIndex: i },
-					);
-				}
-
-				// A business id survives a workflow-level retry; the execution-scoped
-				// fallback only survives Retry On Fail, which re-runs inside this execution.
-				const idempotencyKey =
-					((this.getNodeParameter('idempotencyKey', i, '') as string) || '').trim() ||
-					`${this.getExecutionId()}:${this.getNode().name}:${i}`;
-
-				if (operation === 'send') {
-					return await client.sendPayment({
-						target,
-						amount,
-						note,
-						audience,
-						fundingSourceId: (this.getNodeParameter('fundingSourceId', i, '') as string) || undefined,
-						idempotencyKey,
-					});
-				}
-
-				return await client.requestPayment({ target, amount, note, audience, idempotencyKey });
-			}
-
-			if (operation === 'get') {
-				const paymentId = this.getNodeParameter('paymentId', i) as string;
-				return await client.getPayment(paymentId);
-			}
-
-			if (operation === 'list') {
-				return await client.listPayments({
-					action: this.getNodeParameter('listAction', i, 'all') as string,
-					limit: this.getNodeParameter('paymentLimit', i, 50) as number,
-					beforeId: (this.getNodeParameter('beforeId', i, '') as string) || undefined,
-				});
-			}
-
-			if (operation === 'update') {
-				const paymentId = this.getNodeParameter('paymentId', i) as string;
-				const action = this.getNodeParameter('paymentAction', i) as
-					| 'approve'
-					| 'deny'
-					| 'cancel'
-					| 'remind';
-				return await client.updatePayment(paymentId, action);
-			}
-
-			if (operation === 'getTransaction') {
-				const transactionId = this.getNodeParameter('transactionId', i) as string;
-				return await client.getTransaction(transactionId);
-			}
-
-			if (operation === 'listTransactions') {
-				return await client.getTransactions(
-					(this.getNodeParameter('transactionsUserId', i, '') as string) || undefined,
-					{
-						limit: this.getNodeParameter('paymentLimit', i, 50) as number,
-						beforeId: (this.getNodeParameter('beforeId', i, '') as string) || undefined,
-					},
-				);
-			}
-		}
-
-		if (resource === 'custom' && operation === 'request') {
-			const method = this.getNodeParameter('method', i) as string;
-			const path = this.getNodeParameter('path', i) as string;
-			return await client.apiRequest(method, path, {
-				query: parseJsonParam(this, this.getNodeParameter('query', i, ''), 'Query'),
-				body: parseJsonParam(this, this.getNodeParameter('body', i, ''), 'Body'),
-			});
-		}
-
-		throw new NodeOperationError(
-			this.getNode(),
-			`Unsupported operation "${operation}" for resource "${resource}".`,
-			{ itemIndex: i },
-		);
-	}
 }
